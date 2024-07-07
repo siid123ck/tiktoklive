@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { FC } from 'react';
 
+
 const Nav: FC = () => {
   return (
     <nav className="bg-gray-800 p-4 flex justify-between">
