@@ -1,27 +1,49 @@
-// pages/api/socket.ts
-import { Server } from "socket.io";
+import { Server as HttpServer } from 'http';
+import { NextApiRequest, NextApiResponse } from 'next';
+import { Server as IOServer } from 'socket.io';
+import { Socket as NetSocket } from 'net';
+import { ServerResponse } from 'http';
 
-const SocketHandler = (req: any, res: any) => {
+interface SocketServer extends NetSocket {
+  server: HttpServer & {
+    io?: IOServer;
+  };
+}
+
+interface NextApiResponseWithSocket extends ServerResponse {
+  socket: SocketServer;
+}
+
+const SocketHandler = (req: NextApiRequest, res: NextApiResponseWithSocket) => {
   if (res.socket.server.io) {
-    console.log("Socket is already running");
+    console.log('Socket.io server already running');
   } else {
-    console.log("Socket is initializing");
-    const io = new Server(res.socket.server);
-    res.socket.server.io = io;
+    console.log('Setting up Socket.io server...');
+    const httpServer: HttpServer = res.socket.server as any;
+    const io = new IOServer(httpServer, {
+      path: '/api/socket',
+      cors: {
+        origin: '*',
+      },
+    });
 
-    io.on("connection", (socket) => {
-      console.log("Client connected");
+    io.on('connection', (socket) => {
+      console.log('User connected:', socket.id);
 
-      socket.on("start-broadcast", (data) => {
-        console.log(data.message);
-        io.emit("broadcast-message", { message: "Broadcast has started!" });
+      socket.on('callUser', (data) => {
+        io.to(data.userToCall).emit('callUser', { signal: data.signalData, from: data.from });
       });
 
-      socket.on("stop-broadcast", (data) => {
-        console.log(data.message);
-        io.emit("broadcast-message", { message: "Broadcast has stopped!" });
+      socket.on('acceptCall', (data) => {
+        io.to(data.to).emit('callAccepted', data.signal);
+      });
+
+      socket.on('disconnect', () => {
+        console.log('User disconnected:', socket.id);
       });
     });
+
+    res.socket.server.io = io;
   }
   res.end();
 };
